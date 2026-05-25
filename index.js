@@ -35,6 +35,11 @@ async function run() {
       res.send(result);
     });
 
+    app.get("/")
+
+
+
+
     app.get("/ideas/:IdeasId", async (req, res) => {
       const { IdeasId } = req.params;
       const query = { _id: IdeasId }; //new Object(IdeasId)  use kora jaitw jothi ---তাহলে MongoDB তে insert করার সময় _id টা real ObjectId হিসেবে দিতে হবে।
