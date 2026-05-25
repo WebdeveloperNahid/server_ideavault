@@ -35,7 +35,11 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/")
+    app.get("/home", (req, res) => {
+      const cursor = ideasCollection.find().limit(6);
+      const result = await cursor.toArray();
+      res.send(result);
+    })
 
 
 
