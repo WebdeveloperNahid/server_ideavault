@@ -4,10 +4,16 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 require("dotenv").config();
 const app = express();
 const cors = require("cors");
+const { createRemoteJWKSet, jwtVerify } = require("jose-cjs");
 app.use(cors());
 const port = process.env.PORT || 8080;
 
 const uri = process.env.MONGODB_URI;
+
+const JWKS = createRemoteJWKSet(
+  new URL(`${process.env.CLIENT_URL}/api/auth/jwks`),
+);
+// console.log(JWKS,"jwks");
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
@@ -23,9 +29,29 @@ const logger = (req, res, next) => {
   next();
 };
 
-const varifyToken = async (req,res, next) => {
-  console.log(req.headers,"from varify token");
-  next();
+const varifyToken = async (req, res, next) => {
+  // console.log(req.headers, "from varify token");
+  const { authorization } = req.headers;
+  const token = authorization?.split(" ")[1];
+  // console.log(token)
+
+  if (!token) {
+    return res.status(401).json({ message: "unauthorize" });
+  }
+  try {
+    const JWKS = createRemoteJWKSet(
+      new URL("http://localhost:3000/api/auth/jwks"),
+    );
+    const { payload } = await jwtVerify(token, JWKS);
+    req.user = payload;
+
+     next();
+  } catch (error) {
+    console.error("Token validation failed:", error);
+    return res.status(401).json({ message: "unauthorize" });
+  }
+
+ 
 };
 
 async function run() {
@@ -50,9 +76,9 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/ideas/:IdeasId", logger,varifyToken, async (req, res) => {
+    app.get("/ideas/:IdeasId", logger, varifyToken, async (req, res) => {
       const { IdeasId } = req.params;
-      const query = { _id: new Object(IdeasId)  }; //new Object(IdeasId)  use kora jaitw jothi ---তাহলে MongoDB তে insert করার সময় _id টা real ObjectId হিসেবে দিতে হবে।
+      const query = { _id: IdeasId }; //new Object(IdeasId)  use kora jaitw jothi ---তাহলে MongoDB তে insert করার সময় _id টা real ObjectId হিসেবে দিতে হবে।
       const result = await ideasCollection.findOne(query);
       res.send(result);
     });
