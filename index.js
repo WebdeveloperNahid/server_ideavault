@@ -45,13 +45,11 @@ const varifyToken = async (req, res, next) => {
     const { payload } = await jwtVerify(token, JWKS);
     req.user = payload;
 
-     next();
+    next();
   } catch (error) {
     console.error("Token validation failed:", error);
     return res.status(401).json({ message: "unauthorize" });
   }
-
- 
 };
 
 async function run() {
@@ -65,7 +63,19 @@ async function run() {
     const ideasCollection = db.collection("ideas");
 
     app.get("/ideas", async (req, res) => {
-      const cursor = ideasCollection.find();
+      const { search } = req.query;
+      let cursor;
+      if (search) {
+        cursor = ideasCollection
+          .find({
+      ideaTitle: { $regex: search, $options: "i" }
+    }) ////////////////////////////////////////kalke ai  khaner code ta dekte hobe mabe change korte hoite pare
+          // .toArray();
+        // res.send();
+      } else {
+       cursor = ideasCollection.find();
+      }
+
       const result = await cursor.toArray();
       res.send(result);
     });
