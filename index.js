@@ -187,7 +187,7 @@ async function run() {
       const newIdea = {
         ideaTitle: idea.title,
         shortDescription: idea.shortDesc,
-        detaileDescription: idea.detaileDesc,
+        detailedDescription: idea.detaileDesc,
         category: idea.category,
         imageURL: idea.imageUrl,
         targetAudience: idea.targetAudience,
@@ -196,7 +196,7 @@ async function run() {
         userId,
         userName: username || name || email,
 
-        createAt: new Date(),
+        createdAt: new Date(),
       };
       const result = await ideasCollection.insertOne(newIdea);
       res.send({...newIdea,_id:result.insertedId});
@@ -208,7 +208,7 @@ async function run() {
       const { sub: userId } = req.user;
 
       const result = await ideasCollection
-        .find({ usrId })
+        .find({ userId })
         .sort({ createdAt: -1 })
         .toArray();
 
