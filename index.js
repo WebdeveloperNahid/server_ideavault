@@ -61,10 +61,11 @@ async function run() {
     // Send a ping to confirm a successful connection
     // await client.db("admin").command({ ping: 1 });
 
+    ///################@@@@@@@@@@@@@___Data base____@@@@@@@############
+
     const db = client.db("ideavault");
     const ideasCollection = db.collection("ideas");
-    // const postCollection = db.collection("posts");  //**** */
-     const commentsCollection = db.collection("comments");
+    const commentsCollection = db.collection("comments");
 
     app.get("/ideas", async (req, res) => {
       const { search } = req.query;
@@ -72,7 +73,7 @@ async function run() {
       if (search) {
         cursor = ideasCollection.find({
           ideaTitle: { $regex: search, $options: "i" },
-        }); ////////////////////////////////////////kalke ai  khaner code ta dekte hobe mabe change korte hoite pare
+        }); //////////kalke ai  khaner code ta dekte hobe mabe change korte hoite pare
         // .toArray();
         // res.send();
       } else {
@@ -96,9 +97,6 @@ async function run() {
       res.send(result);
     });
 
-
- // ── Comment routes (নতুন) ──
-    
     // Comment POST করো
     app.post("/comments", varifyToken, async (req, res) => {
       const { ideaId, text } = req.body;
@@ -120,7 +118,7 @@ async function run() {
       res.send({ ...comment, _id: result.insertedId });
     });
 
-    // একটা idea র সব comments পাও
+    // idea get every comments
     app.get("/comments/:ideaId", async (req, res) => {
       const { ideaId } = req.params;
       const comments = await commentsCollection
@@ -130,8 +128,8 @@ async function run() {
       res.send(comments);
     });
 
+    // My Interactions —my all comments
 
-    // My Interactions — আমার সব comments
     app.get("/my-comments", varifyToken, async (req, res) => {
       const { sub: userId } = req.user;
       const comments = await commentsCollection
@@ -157,7 +155,7 @@ async function run() {
 
       await commentsCollection.updateOne(
         { _id: new ObjectId(commentId) },
-        { $set: { text, updatedAt: new Date() } } //  text update
+        { $set: { text, updatedAt: new Date() } }, //  text update
       );
       res.send({ message: "Updated" });
     });
@@ -177,6 +175,44 @@ async function run() {
 
       await commentsCollection.deleteOne({ _id: new ObjectId(commentId) });
       res.send({ message: "Deleted" });
+    });
+
+    ////****$$$######### For add-ideas page to add idea card in ideas and my-ideas page */
+
+    //Add idea API
+
+    app.post("/ideas", varifyToken, async (req, res) => {
+      const idea = req.body;
+      const { sub: userId, username, email, name } = req.user;
+      const newIdea = {
+        ideaTitle: idea.title,
+        shortDescription: idea.shortDesc,
+        detaileDescription: idea.detaileDesc,
+        category: idea.category,
+        imageURL: idea.imageUrl,
+        targetAudience: idea.targetAudience,
+        problemStatement: idea.problemStatement,
+        proposedSolution: idea.proposedSolution,
+        userId,
+        userName: username || name || email,
+
+        createAt: new Date(),
+      };
+      const result = await ideasCollection.insertOne(newIdea);
+      res.send({...newIdea,_id:result.insertedId});
+    });
+
+    //MY Ideas Api
+
+    app.get("/my-ideas", varifyToken, async (req, res) => {
+      const { sub: userId } = req.user;
+
+      const result = await ideasCollection
+        .find({ usrId })
+        .sort({ createdAt: -1 })
+        .toArray();
+
+      res.send(result);
     });
 
 
