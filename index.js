@@ -216,6 +216,38 @@ async function run() {
     });
 
 
+    //for ideas page ---
+
+    app.patch("/ideas/:ideaId", varifyToken, async (req, res) => {
+  const { ideaId } = req.params;
+  const { sub: userId } = req.user;
+  const body = req.body;
+
+  const idea = await ideasCollection.findOne({ _id: new ObjectId(ideaId) });
+  if (!idea) return res.status(404).json({ message: "Not found" });
+  if (idea.userId !== userId)
+    return res.status(403).json({ message: "Forbidden" });
+
+  await ideasCollection.updateOne(
+    { _id: new ObjectId(ideaId) },
+    {
+      $set: {
+        ideaTitle: body.title,
+        shortDescription: body.shortDesc,
+        detailedDescription: body.detailedDesc,
+        category: body.category,
+        imageURL: body.imageUrl,
+        targetAudience: body.targetAudience,
+        problemStatement: body.problemStatement,
+        proposedSolution: body.proposedSolution,
+        updatedAt: new Date(),
+      },
+    }
+  );
+  res.send({ message: "Updated" });
+});
+
+
 
     // comment post for update delete functionality
 
