@@ -67,22 +67,22 @@ async function run() {
     const ideasCollection = db.collection("ideas");
     const commentsCollection = db.collection("comments");
 
-    app.get("/ideas", async (req, res) => {
-      const { search } = req.query;
-      let cursor;
-      if (search) {
-        cursor = ideasCollection.find({
-          ideaTitle: { $regex: search, $options: "i" },
-        }); //////////kalke ai  khaner code ta dekte hobe mabe change korte hoite pare
-        // .toArray();
-        // res.send();
-      } else {
-        cursor = ideasCollection.find();
-      }
+    // app.get("/ideas", async (req, res) => {
+    //   const { search } = req.query;
+    //   let cursor;
+    //   if (search) {
+    //     cursor = ideasCollection.find({
+    //       ideaTitle: { $regex: search, $options: "i" },
+    //     }); //////////kalke ai  khaner code ta dekte hobe mabe change korte hoite pare
+    //     // .toArray();
+    //     // res.send();
+    //   } else {
+    //     cursor = ideasCollection.find();
+    //   }
 
-      const result = await cursor.toArray();
-      res.send(result);
-    });
+    //   const result = await cursor.toArray();
+    //   res.send(result);
+    // });
 
     app.get("/home", async (req, res) => {
       const cursor = ideasCollection.find().limit(6);
@@ -243,11 +243,11 @@ async function run() {
 
       await ideasCollection.updateOne(query, {
         $set: {
-          ideaTitle: body.title,
-          shortDescription: body.shortDesc,
-          detailedDescription: body.detailedDesc,
+          ideaTitle: body.ideaTitle, 
+          shortDescription: body.shortDescription,
+          detailedDescription: body.detailedDescription, 
           category: body.category,
-          imageURL: body.imageUrl,
+          imageURL: body.imageURL, 
           targetAudience: body.targetAudience,
           problemStatement: body.problemStatement,
           proposedSolution: body.proposedSolution,
@@ -276,6 +276,28 @@ async function run() {
 
       await ideasCollection.deleteOne(query);
       res.send({ message: "Deleted" });
+    });
+
+    app.get("/ideas", async (req, res) => {
+      const { search, category } = req.query;
+
+      let query = {};
+
+      // Search by title
+      if (search) {
+        query.ideaTitle = {
+          $regex: search,
+          $options: "i",
+        };
+      }
+      // Category filter
+      if (category && category !== "all") {
+        query.category = category;
+      }
+
+      const ideas = await ideasCollection.find(query).toArray();
+
+      res.send(ideas);
     });
 
     // comment post for update delete functionality
