@@ -92,8 +92,15 @@ async function run() {
 
     app.get("/ideas/:IdeasId", logger, varifyToken, async (req, res) => {
       const { IdeasId } = req.params;
-      const query = { _id: IdeasId }; //new Object(IdeasId)  use kora jaitw jothi ---তাহলে MongoDB তে insert করার সময় _id টা real ObjectId হিসেবে দিতে হবে।
-      const result = await ideasCollection.findOne(query);
+      let result = null;
+      try {
+          result = await ideasCollection.findOne({ _id: new ObjectId(IdeasId) });
+      } catch {}
+      if (!result) {
+        result = await ideasCollection.findOne({ _id: IdeasId });
+      }
+     
+      if (!result) return res.status(404).json({ message: "Not found" });
       res.send(result);
     });
 
