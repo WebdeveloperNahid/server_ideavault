@@ -94,12 +94,12 @@ async function run() {
       const { IdeasId } = req.params;
       let result = null;
       try {
-          result = await ideasCollection.findOne({ _id: new ObjectId(IdeasId) });
+        result = await ideasCollection.findOne({ _id: new ObjectId(IdeasId) });
       } catch {}
       if (!result) {
         result = await ideasCollection.findOne({ _id: IdeasId });
       }
-     
+
       if (!result) return res.status(404).json({ message: "Not found" });
       res.send(result);
     });
@@ -194,7 +194,7 @@ async function run() {
       const newIdea = {
         ideaTitle: idea.title,
         shortDescription: idea.shortDesc,
-        detailedDescription: idea.detaileDesc,
+        detailedDescription: idea.detailedDesc,
         category: idea.category,
         imageURL: idea.imageUrl,
         targetAudience: idea.targetAudience,
@@ -229,7 +229,14 @@ async function run() {
       const { sub: userId } = req.user;
       const body = req.body;
 
-      const idea = await ideasCollection.findOne({ _id: new ObjectId(ideaId) });
+      let query;
+      try {
+        query = { _id: new ObjectId(ideaId) };
+      } catch {
+        query = { _id: ideaId };
+      }
+
+      const idea = await ideasCollection.findOne(query);
       if (!idea) return res.status(404).json({ message: "Not found" });
       if (idea.userId !== userId)
         return res.status(403).json({ message: "Forbidden" });
