@@ -199,7 +199,7 @@ async function run() {
         createdAt: new Date(),
       };
       const result = await ideasCollection.insertOne(newIdea);
-      res.send({...newIdea,_id:result.insertedId});
+      res.send({ ...newIdea, _id: result.insertedId });
     });
 
     //MY Ideas Api
@@ -215,39 +215,54 @@ async function run() {
       res.send(result);
     });
 
-
     //for ideas page ---
 
     app.patch("/ideas/:ideaId", varifyToken, async (req, res) => {
-  const { ideaId } = req.params;
-  const { sub: userId } = req.user;
-  const body = req.body;
+      const { ideaId } = req.params;
+      const { sub: userId } = req.user;
+      const body = req.body;
 
-  const idea = await ideasCollection.findOne({ _id: new ObjectId(ideaId) });
-  if (!idea) return res.status(404).json({ message: "Not found" });
-  if (idea.userId !== userId)
-    return res.status(403).json({ message: "Forbidden" });
+      const idea = await ideasCollection.findOne({ _id: new ObjectId(ideaId) });
+      if (!idea) return res.status(404).json({ message: "Not found" });
+      if (idea.userId !== userId)
+        return res.status(403).json({ message: "Forbidden" });
 
-  await ideasCollection.updateOne(
-    { _id: new ObjectId(ideaId) },
-    {
-      $set: {
-        ideaTitle: body.title,
-        shortDescription: body.shortDesc,
-        detailedDescription: body.detailedDesc,
-        category: body.category,
-        imageURL: body.imageUrl,
-        targetAudience: body.targetAudience,
-        problemStatement: body.problemStatement,
-        proposedSolution: body.proposedSolution,
-        updatedAt: new Date(),
-      },
-    }
-  );
-  res.send({ message: "Updated" });
-});
+      await ideasCollection.updateOne(query, {
+        $set: {
+          ideaTitle: body.title,
+          shortDescription: body.shortDesc,
+          detailedDescription: body.detailedDesc,
+          category: body.category,
+          imageURL: body.imageUrl,
+          targetAudience: body.targetAudience,
+          problemStatement: body.problemStatement,
+          proposedSolution: body.proposedSolution,
+          updatedAt: new Date(),
+        },
+      });
+      res.send({ message: "Updated" });
+    });
 
+    // Idea DELETE
+    app.delete("/ideas/:ideaId", varifyToken, async (req, res) => {
+      const { ideaId } = req.params;
+      const { sub: userId } = req.user;
 
+      let query;
+      try {
+        query = { _id: new ObjectId(ideaId) };
+      } catch {
+        query = { _id: ideaId };
+      }
+
+      const idea = await ideasCollection.findOne(query);
+      if (!idea) return res.status(404).json({ message: "Not found" });
+      if (idea.userId !== userId)
+        return res.status(403).json({ message: "Forbidden" });
+
+      await ideasCollection.deleteOne(query);
+      res.send({ message: "Deleted" });
+    });
 
     // comment post for update delete functionality
 
