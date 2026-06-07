@@ -42,12 +42,12 @@ const varifyToken = async (req, res, next) => {
   }
   try {
     const JWKS = createRemoteJWKSet(
-      new URL("http://localhost:3000/api/auth/jwks"),
+      new URL(`${process.env.CLIENT_URL}/api/auth/jwks`),
     );
     const { payload } = await jwtVerify(token, JWKS);
     req.user = payload;
-
     next();
+    
   } catch (error) {
     console.error("Token validation failed:", error);
     return res.status(401).json({ message: "unauthorize" });
