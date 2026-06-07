@@ -1,215 +1,285 @@
-// const express = require("express");
+const express = require("express");
 // const dotenv = require("dotenv");
-// const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
-// require("dotenv").config();
-// const app = express();
-// const cors = require("cors");
-// const { createRemoteJWKSet, jwtVerify } = require("jose-cjs");
-// app.use(cors());
-// app.use(express.json());
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+require("dotenv").config();
+const cors = require("cors");
+const { createRemoteJWKSet, jwtVerify } = require("jose-cjs");
 
-// const port = process.env.PORT || 8080;
+const app = express();
+app.use(cors());
+app.use(express.json());
 
-// const uri = process.env.MONGODB_URI;
+const port = process.env.PORT || 8080;
+const uri = process.env.MONGODB_URI;
 
 // const JWKS = createRemoteJWKSet(
 //   new URL(`${process.env.CLIENT_URL}/api/auth/jwks`),
 // );
-// // console.log(JWKS,"jwks");
 
-// // Create a MongoClient with a MongoClientOptions object to set the Stable API version
-// const client = new MongoClient(uri, {
-//   serverApi: {
-//     version: ServerApiVersion.v1,
-//     strict: true,
-//     deprecationErrors: true,
-//   },
-// });
+const client = new MongoClient(uri, {
+  serverApi: {
+    version: ServerApiVersion.v1,
+    strict: true,
+    deprecationErrors: true,
+  },
+});
 
 // const logger = (req, res, next) => {
 //   console.log(`${req.method} | ${req.url}`);
 //   next();
 // };
 
-// const varifyToken = async (req, res, next) => {
-//   // console.log(req.headers, "from varify token");
-//   const { authorization } = req.headers;
-//   const token = authorization?.split(" ")[1];
-//   // console.log(token)
+// ✅ একবার connect করো, বারবার না
+let isConnected = false;
+async function connectDB() {
+  if (!isConnected) {
+    await client.connect();
+    isConnected = true;
+    console.log("MongoDB connected!");
+  }
+  return client.db("ideavault");
+}
 
-//   if (!token) {
-//     return res.status(401).json({ message: "unauthorize" });
-//   }
-//   try {
-//     const JWKS = createRemoteJWKSet(
-//       new URL(`${process.env.CLIENT_URL}/api/auth/jwks`),
-//     );
-//     const { payload } = await jwtVerify(token, JWKS);
-//     req.user = payload;
-//     next();
-    
-//   } catch (error) {
-//     console.error("Token validation failed:", error);
-//     return res.status(401).json({ message: "unauthorize" });
-//   }
-// };
+const varifyToken = async (req, res, next) => {
+  // console.log(req.headers, "from varify token");
+  const { authorization } = req.headers;
+  const token = authorization?.split(" ")[1];
+  // console.log(token)
+
+  if (!token) {
+    return res.status(401).json({ message: "unauthorize" });
+  }
+  try {
+    const JWKS = createRemoteJWKSet(
+      new URL(`${process.env.CLIENT_URL}/api/auth/jwks`),
+    );
+    const { payload } = await jwtVerify(token, JWKS);
+    req.user = payload;
+    next();
+  } catch (error) {
+    console.error("Token validation failed:", error);
+    return res.status(401).json({ message: "unauthorize" });
+  }
+};
 
 // async function run() {
 //   try {
-//     // Connect the client to the server	(optional starting in v4.7)
 //     await client.connect();
-//     // Send a ping to confirm a successful connection
-//     // await client.db("admin").command({ ping: 1 });
-
-//     ///################@@@@@@@@@@@@@___Data base____@@@@@@@############
 
 //     const db = client.db("ideavault");
 //     const ideasCollection = db.collection("ideas");
 //     const commentsCollection = db.collection("comments");
 
-//     // app.get("/ideas", async (req, res) => {
-//     //   const { search } = req.query;
-//     //   let cursor;
-//     //   if (search) {
-//     //     cursor = ideasCollection.find({
-//     //       ideaTitle: { $regex: search, $options: "i" },
-//     //     }); //////////kalke ai  khaner code ta dekte hobe mabe change korte hoite pare
-//     //     // .toArray();
-//     //     // res.send();
-//     //   } else {
-//     //     cursor = ideasCollection.find();
-//     //   }
+app.get("/", (req, res) => res.send("Hello World!"));
 
-//     //   const result = await cursor.toArray();
-//     //   res.send(result);
-//     // });
+app.get("/home", async (req, res) => {
+  const db = await connectDB();
+  const result = await db.collection("ideas").find().limit(6).toArray();
+  res.send(result);
+});
+app.get("/ideas", async (req, res) => {
+  const db = await connectDB();
+  const { search, category } = req.query;
+  let query = {};
+  if (search) query.ideaTitle = { $regex: search, $options: "i" };
+  if (category && category !== "all") query.category = category;
+  const ideas = await db.collection("ideas").find(query).toArray();
+  res.send(ideas);
+});
 
-//     app.get("/home", async (req, res) => {
-//       const cursor = ideasCollection.find().limit(6);
-//       const result = await cursor.toArray();
-//       res.send(result);
-//     });
+app.get("/ideas/:IdeasId", varifyToken, async (req, res) => {
+  const db = await connectDB();
+  const { IdeasId } = req.params;
+  let result = null;
+  try {
+    result = await db
+      .collection("ideas")
+      .findOne({ _id: new ObjectId(IdeasId) });
+  } catch {}
+  if (!result) {
+    result = await db.collection("ideas").findOne({ _id: IdeasId });
+  }
 
-//     app.get("/ideas/:IdeasId", logger, varifyToken, async (req, res) => {
-//       const { IdeasId } = req.params;
-//       let result = null;
-//       try {
-//         result = await ideasCollection.findOne({ _id: new ObjectId(IdeasId) });
-//       } catch {}
-//       if (!result) {
-//         result = await ideasCollection.findOne({ _id: IdeasId });
-//       }
+  if (!result) return res.status(404).json({ message: "Not found" });
+  res.send(result);
+});
 
-//       if (!result) return res.status(404).json({ message: "Not found" });
-//       res.send(result);
-//     });
+// Comment POST করো
+app.post("/ideas", varifyToken, async (req, res) => {
+  const db = await connectDB();
+  const idea = req.body;
+  const { sub: userId, name, username, email } = req.user;
 
-//     // Comment POST করো
-//     app.post("/comments", varifyToken, async (req, res) => {
-//       const { ideaId, text } = req.body;
-//       const { sub: userId, name, username, email } = req.user;
+  const newIdea = {
+    ideaTitle: idea.title,
+    shortDescription: idea.shortDesc,
+    detailedDescription: idea.detailedDesc,
+    category: idea.category,
+    imageURL: idea.imageUrl,
+    targetAudience: idea.targetAudience,
+    problemStatement: idea.problemStatement,
+    proposedSolution: idea.proposedSolution,
+    userId,
+    userName: username || name || email,
+    createdAt: new Date(),
+  };
 
-//       if (!ideaId || !text) {
-//         return res.status(400).json({ message: "ideaId and text required" });
-//       }
+  const result = await db.collection("ideas").insertOne(newIdea);
+  res.send({ ...newIdea, _id: result.insertedId });
+});
 
-//       const comment = {
-//         ideaId,
-//         text,
-//         userId,
-//         userName: username || name || email,
-//         createdAt: new Date(),
-//       };
+app.get("/my-ideas", varifyToken, async (req, res) => {
+  const db = await connectDB();
+  const { sub: userId } = req.user;
+  const result = await db
+    .collection("ideas")
+    .find({ userId })
+    .sort({ createdAt: -1 })
+    .toArray();
+  res.send(result);
+});
 
-//       const result = await commentsCollection.insertOne(comment);
-//       res.send({ ...comment, _id: result.insertedId });
-//     });
+app.patch("/ideas/:ideaId", varifyToken, async (req, res) => {
+  const db = await connectDB();
+  const { ideaId } = req.params;
+  const { sub: userId } = req.user;
+  const body = req.body;
+  let query;
+  try {
+    query = { _id: new ObjectId(ideaId) };
+  } catch {
+    query = { _id: ideaId };
+  }
+  const idea = await db.collection("ideas").findOne(query);
+  if (!idea) return res.status(404).json({ message: "Not found" });
+  if (idea.userId !== userId)
+    return res.status(403).json({ message: "Forbidden" });
+  await db.collection("ideas").updateOne(query, {
+    $set: { ...body, updatedAt: new Date() },
+  });
+  res.send({ message: "Updated" });
+});
 
-//     // idea get every comments
-//     app.get("/comments/:ideaId", async (req, res) => {
-//       const { ideaId } = req.params;
-//       const comments = await commentsCollection
-//         .find({ ideaId })
-//         .sort({ createdAt: -1 })
-//         .toArray();
-//       res.send(comments);
-//     });
+app.delete("/ideas/:ideaId", varifyToken, async (req, res) => {
+  const db = await connectDB();
+  const { ideaId } = req.params;
+  const { sub: userId } = req.user;
+  let query;
+  try {
+    query = { _id: new ObjectId(ideaId) };
+  } catch {
+    query = { _id: ideaId };
+  }
+  const idea = await db.collection("ideas").findOne(query);
+  if (!idea) return res.status(404).json({ message: "Not found" });
+  if (idea.userId !== userId)
+    return res.status(403).json({ message: "Forbidden" });
+  await db.collection("ideas").deleteOne(query);
+  res.send({ message: "Deleted" });
+});
 
-//     // My Interactions —my all comments
+// idea get every comments
+app.get("/comments/:ideaId", async (req, res) => {
+  const db = await connectDB();
+  const { ideaId } = req.params;
+  const comments = await db
+    .collection("comments")
+    .find({ ideaId })
+    .sort({ createdAt: -1 })
+    .toArray();
+  res.send(comments);
+});
 
-//     app.get("/my-comments", varifyToken, async (req, res) => {
-//       const { sub: userId } = req.user;
-//       const comments = await commentsCollection
-//         .find({ userId })
-//         .sort({ createdAt: -1 })
-//         .toArray();
-//       res.send(comments);
-//     });
+// My Interactions —my all comments
 
-//     // Comment EDIT করো
-//     app.patch("/comments/:commentId", varifyToken, async (req, res) => {
-//       const { commentId } = req.params; //  commentId nicci
-//       const { text } = req.body;
-//       const { sub: userId } = req.user;
+app.get("/my-comments", varifyToken, async (req, res) => {
+  const db = await connectDB();
+  const { sub: userId } = req.user;
+  const comments = await db
+    .collection("comments")
+    .find({ userId })
+    .sort({ createdAt: -1 })
+    .toArray();
+  res.send(comments);
+});
 
-//       const comment = await commentsCollection.findOne({
-//         _id: new ObjectId(commentId), // commentsCollection
-//       });
+// Comment EDIT করো
+app.patch("/comments/:commentId", varifyToken, async (req, res) => {
+  const db = await connectDB();
+  const { commentId } = req.params; //  commentId nicci
+  const { text } = req.body;
+  const { sub: userId } = req.user;
 
-//       if (!comment) return res.status(404).json({ message: "Not found" });
-//       if (comment.userId !== userId)
-//         return res.status(403).json({ message: "Forbidden" });
+  const comment = await db.collection("comments").findOne({
+    _id: new ObjectId(commentId), // commentsCollection
+  });
 
-//       await commentsCollection.updateOne(
-//         { _id: new ObjectId(commentId) },
-//         { $set: { text, updatedAt: new Date() } }, //  text update
-//       );
-//       res.send({ message: "Updated" });
-//     });
+  if (!comment) return res.status(404).json({ message: "Not found" });
+  if (comment.userId !== userId)
+    return res.status(403).json({ message: "Forbidden" });
 
-//     // Comment DELETE করো
-//     app.delete("/comments/:commentId", varifyToken, async (req, res) => {
-//       const { commentId } = req.params;
-//       const { sub: userId } = req.user;
+  await db.collection("comments").updateOne(
+    { _id: new ObjectId(commentId) },
+    { $set: { text, updatedAt: new Date() } }, //  text update
+  );
+  res.send({ message: "Updated" });
+});
 
-//       const comment = await commentsCollection.findOne({
-//         _id: new ObjectId(commentId),
-//       });
+// Comment DELETE করো
+app.delete("/comments/:commentId", varifyToken, async (req, res) => {
+  const db = await connectDB();
+  const { commentId } = req.params;
+  const { sub: userId } = req.user;
 
-//       if (!comment) return res.status(404).json({ message: "Not found" });
-//       if (comment.userId !== userId)
-//         return res.status(403).json({ message: "Forbidden" });
+  const comment = await db.collection("comments").findOne({
+    _id: new ObjectId(commentId),
+  });
 
-//       await commentsCollection.deleteOne({ _id: new ObjectId(commentId) });
-//       res.send({ message: "Deleted" });
-//     });
+  if (!comment) return res.status(404).json({ message: "Not found" });
+  if (comment.userId !== userId)
+    return res.status(403).json({ message: "Forbidden" });
 
-//     ////****$$$######### For add-ideas page to add idea card in ideas and my-ideas page */
+  await db.collection("comments").deleteOne({ _id: new ObjectId(commentId) });
+  res.send({ message: "Deleted" });
+});
 
-//     //Add idea API
+////****$$$######### For add-ideas page to add idea card in ideas and my-ideas page */
 
-//     app.post("/ideas", varifyToken, async (req, res) => {
-//       const idea = req.body;
-//       const { sub: userId, username, email, name } = req.user;
-//       const newIdea = {
-//         ideaTitle: idea.title,
-//         shortDescription: idea.shortDesc,
-//         detailedDescription: idea.detailedDesc,
-//         category: idea.category,
-//         imageURL: idea.imageUrl,
-//         targetAudience: idea.targetAudience,
-//         problemStatement: idea.problemStatement,
-//         proposedSolution: idea.proposedSolution,
-//         userId,
-//         userName: username || name || email,
+//Add idea API
 
-//         createdAt: new Date(),
-//       };
-//       const result = await ideasCollection.insertOne(newIdea);
-//       res.send({ ...newIdea, _id: result.insertedId });
-//     });
+app.post("/comments", varifyToken, async (req, res) => {
+  const db = await connectDB();
+  const { ideaId, text } = req.body;
+  const { sub: userId, username, email, name } = req.user;
+  if (!ideaId || !text)
+    return res.status(400).json({ message: "ideaId and text required" });
+  const comment = {
+    ideaId,
+    text,
+    userId,
+    userName: username || name || email,
+    createdAt: new Date(),
+  };
+  const result = await db.collection("ideas").insertOne(newIdea);
+  res.send({ ...newIdea, _id: result.insertedId });
+});
 
-//     //MY Ideas Api
+module.exports = app;
+
+if (require.main === module) {
+  app.listen(port, () => console.log(`Server running on port ${port}`));
+}
+
+
+
+
+
+
+
+
+
+
+//MY Ideas Api
 
 //     app.get("/my-ideas", varifyToken, async (req, res) => {
 //       const { sub: userId } = req.user;
@@ -225,6 +295,7 @@
 //     //for ideas page ---
 
 //     app.patch("/ideas/:ideaId", varifyToken, async (req, res) => {
+//         const db = await connectDB();
 //       const { ideaId } = req.params;
 //       const { sub: userId } = req.user;
 //       const body = req.body;
@@ -236,21 +307,13 @@
 //         query = { _id: ideaId };
 //       }
 
-//       const idea = await ideasCollection.findOne(query);
+//       const idea = await db.collection("ideas").findOne(query);
 //       if (!idea) return res.status(404).json({ message: "Not found" });
 //       if (idea.userId !== userId)
 //         return res.status(403).json({ message: "Forbidden" });
 
-//       await ideasCollection.updateOne(query, {
-//         $set: {
-//           ideaTitle: body.ideaTitle, 
-//           shortDescription: body.shortDescription,
-//           detailedDescription: body.detailedDescription, 
-//           category: body.category,
-//           imageURL: body.imageURL, 
-//           targetAudience: body.targetAudience,
-//           problemStatement: body.problemStatement,
-//           proposedSolution: body.proposedSolution,
+//       await db.collection("ideas").updateOne(query, {
+//         $set: { ...body,
 //           updatedAt: new Date(),
 //         },
 //       });
@@ -259,6 +322,7 @@
 
 //     // Idea DELETE
 //     app.delete("/ideas/:ideaId", varifyToken, async (req, res) => {
+//       const db = await connectDB();
 //       const { ideaId } = req.params;
 //       const { sub: userId } = req.user;
 
@@ -269,12 +333,12 @@
 //         query = { _id: ideaId };
 //       }
 
-//       const idea = await ideasCollection.findOne(query);
+//       const idea = await  db.collection("ideas").findOne(query);
 //       if (!idea) return res.status(404).json({ message: "Not found" });
 //       if (idea.userId !== userId)
 //         return res.status(403).json({ message: "Forbidden" });
 
-//       await ideasCollection.deleteOne(query);
+//       await  db.collection("ideas").deleteOne(query);
 //       res.send({ message: "Deleted" });
 //     });
 
@@ -342,7 +406,6 @@
 //   res.send("Hello World!");
 // });
 
-
 // module.exports = app;
 // // Local a run korar jonno
 // if (require.main === module) {
@@ -351,197 +414,191 @@
 //   });
 // }
 
+// const express = require("express");
+// const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+// require("dotenv").config();
+// const cors = require("cors");
+// const { createRemoteJWKSet, jwtVerify } = require("jose-cjs");
 
+// const app = express();
+// app.use(cors());
+// app.use(express.json());
 
+// const port = process.env.PORT || 8080;
+// const uri = process.env.MONGODB_URI;
 
+// const client = new MongoClient(uri, {
+//   serverApi: {
+//     version: ServerApiVersion.v1,
+//     strict: true,
+//     deprecationErrors: true,
+//   },
+// });
 
+// // ✅ একবার connect করো, বারবার না
+// let isConnected = false;
+// async function connectDB() {
+//   if (!isConnected) {
+//     await client.connect();
+//     isConnected = true;
+//     console.log("MongoDB connected!");
+//   }
+//   return client.db("ideavault");
+// }
 
+// const varifyToken = async (req, res, next) => {
+//   const { authorization } = req.headers;
+//   const token = authorization?.split(" ")[1];
+//   if (!token) return res.status(401).json({ message: "unauthorize" });
+//   try {
+//     const JWKS = createRemoteJWKSet(
+//       new URL(`${process.env.CLIENT_URL}/api/auth/jwks`)
+//     );
+//     const { payload } = await jwtVerify(token, JWKS);
+//     req.user = payload;
+//     next();
+//   } catch (error) {
+//     return res.status(401).json({ message: "unauthorize" });
+//   }
+// };
 
-const express = require("express");
-const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
-require("dotenv").config();
-const cors = require("cors");
-const { createRemoteJWKSet, jwtVerify } = require("jose-cjs");
+// // ✅ Routes সব বাইরে, connectDB() দিয়ে collection নাও
+// app.get("/", (req, res) => res.send("Hello World!"));
 
-const app = express();
-app.use(cors());
-app.use(express.json());
+// app.get("/home", async (req, res) => {
+//   const db = await connectDB();
+//   const result = await db.collection("ideas").find().limit(6).toArray();
+//   res.send(result);
+// });
 
-const port = process.env.PORT || 8080;
-const uri = process.env.MONGODB_URI;
+// app.get("/ideas", async (req, res) => {
+//   const db = await connectDB();
+//   const { search, category } = req.query;
+//   let query = {};
+//   if (search) query.ideaTitle = { $regex: search, $options: "i" };
+//   if (category && category !== "all") query.category = category;
+//   const ideas = await db.collection("ideas").find(query).toArray();
+//   res.send(ideas);
+// });
 
-const client = new MongoClient(uri, {
-  serverApi: {
-    version: ServerApiVersion.v1,
-    strict: true,
-    deprecationErrors: true,
-  },
-});
+// app.get("/ideas/:IdeasId", varifyToken, async (req, res) => {
+//   const db = await connectDB();
+//   const { IdeasId } = req.params;
+//   let result = null;
+//   try {
+//     result = await db.collection("ideas").findOne({ _id: new ObjectId(IdeasId) });
+//   } catch {}
+//   if (!result) result = await db.collection("ideas").findOne({ _id: IdeasId });
+//   if (!result) return res.status(404).json({ message: "Not found" });
+//   res.send(result);
+// });
 
-// ✅ একবার connect করো, বারবার না
-let isConnected = false;
-async function connectDB() {
-  if (!isConnected) {
-    await client.connect();
-    isConnected = true;
-    console.log("MongoDB connected!");
-  }
-  return client.db("ideavault");
-}
+// app.post("/ideas", varifyToken, async (req, res) => {
+//   const db = await connectDB();
+//   const idea = req.body;
+//   const { sub: userId, username, email, name } = req.user;
+//   const newIdea = {
+//     ideaTitle: idea.title,
+//     shortDescription: idea.shortDesc,
+//     detailedDescription: idea.detailedDesc,
+//     category: idea.category,
+//     imageURL: idea.imageUrl,
+//     targetAudience: idea.targetAudience,
+//     problemStatement: idea.problemStatement,
+//     proposedSolution: idea.proposedSolution,
+//     userId,
+//     userName: username || name || email,
+//     createdAt: new Date(),
+//   };
+//   const result = await db.collection("ideas").insertOne(newIdea);
+//   res.send({ ...newIdea, _id: result.insertedId });
+// });
 
-const varifyToken = async (req, res, next) => {
-  const { authorization } = req.headers;
-  const token = authorization?.split(" ")[1];
-  if (!token) return res.status(401).json({ message: "unauthorize" });
-  try {
-    const JWKS = createRemoteJWKSet(
-      new URL(`${process.env.CLIENT_URL}/api/auth/jwks`)
-    );
-    const { payload } = await jwtVerify(token, JWKS);
-    req.user = payload;
-    next();
-  } catch (error) {
-    return res.status(401).json({ message: "unauthorize" });
-  }
-};
+// app.get("/my-ideas", varifyToken, async (req, res) => {
+//   const db = await connectDB();
+//   const { sub: userId } = req.user;
+//   const result = await db.collection("ideas").find({ userId }).sort({ createdAt: -1 }).toArray();
+//   res.send(result);
+// });
 
-// ✅ Routes সব বাইরে, connectDB() দিয়ে collection নাও
-app.get("/", (req, res) => res.send("Hello World!"));
+// app.patch("/ideas/:ideaId", varifyToken, async (req, res) => {
+//   const db = await connectDB();
+//   const { ideaId } = req.params;
+//   const { sub: userId } = req.user;
+//   const body = req.body;
+//   let query;
+//   try { query = { _id: new ObjectId(ideaId) }; } catch { query = { _id: ideaId }; }
+//   const idea = await db.collection("ideas").findOne(query);
+//   if (!idea) return res.status(404).json({ message: "Not found" });
+//   if (idea.userId !== userId) return res.status(403).json({ message: "Forbidden" });
+//   await db.collection("ideas").updateOne(query, {
+//     $set: { ...body, updatedAt: new Date() }
+//   });
+//   res.send({ message: "Updated" });
+// });
 
-app.get("/home", async (req, res) => {
-  const db = await connectDB();
-  const result = await db.collection("ideas").find().limit(6).toArray();
-  res.send(result);
-});
+// app.delete("/ideas/:ideaId", varifyToken, async (req, res) => {
+//   const db = await connectDB();
+//   const { ideaId } = req.params;
+//   const { sub: userId } = req.user;
+//   let query;
+//   try { query = { _id: new ObjectId(ideaId) }; } catch { query = { _id: ideaId }; }
+//   const idea = await db.collection("ideas").findOne(query);
+//   if (!idea) return res.status(404).json({ message: "Not found" });
+//   if (idea.userId !== userId) return res.status(403).json({ message: "Forbidden" });
+//   await db.collection("ideas").deleteOne(query);
+//   res.send({ message: "Deleted" });
+// });
 
-app.get("/ideas", async (req, res) => {
-  const db = await connectDB();
-  const { search, category } = req.query;
-  let query = {};
-  if (search) query.ideaTitle = { $regex: search, $options: "i" };
-  if (category && category !== "all") query.category = category;
-  const ideas = await db.collection("ideas").find(query).toArray();
-  res.send(ideas);
-});
+// app.post("/comments", varifyToken, async (req, res) => {
+//   const db = await connectDB();
+//   const { ideaId, text } = req.body;
+//   const { sub: userId, name, username, email } = req.user;
+//   if (!ideaId || !text) return res.status(400).json({ message: "ideaId and text required" });
+//   const comment = { ideaId, text, userId, userName: username || name || email, createdAt: new Date() };
+//   const result = await db.collection("comments").insertOne(comment);
+//   res.send({ ...comment, _id: result.insertedId });
+// });
 
-app.get("/ideas/:IdeasId", varifyToken, async (req, res) => {
-  const db = await connectDB();
-  const { IdeasId } = req.params;
-  let result = null;
-  try {
-    result = await db.collection("ideas").findOne({ _id: new ObjectId(IdeasId) });
-  } catch {}
-  if (!result) result = await db.collection("ideas").findOne({ _id: IdeasId });
-  if (!result) return res.status(404).json({ message: "Not found" });
-  res.send(result);
-});
+// app.get("/comments/:ideaId", async (req, res) => {
+//   const db = await connectDB();
+//   const { ideaId } = req.params;
+//   const comments = await db.collection("comments").find({ ideaId }).sort({ createdAt: -1 }).toArray();
+//   res.send(comments);
+// });
 
-app.post("/ideas", varifyToken, async (req, res) => {
-  const db = await connectDB();
-  const idea = req.body;
-  const { sub: userId, username, email, name } = req.user;
-  const newIdea = {
-    ideaTitle: idea.title,
-    shortDescription: idea.shortDesc,
-    detailedDescription: idea.detailedDesc,
-    category: idea.category,
-    imageURL: idea.imageUrl,
-    targetAudience: idea.targetAudience,
-    problemStatement: idea.problemStatement,
-    proposedSolution: idea.proposedSolution,
-    userId,
-    userName: username || name || email,
-    createdAt: new Date(),
-  };
-  const result = await db.collection("ideas").insertOne(newIdea);
-  res.send({ ...newIdea, _id: result.insertedId });
-});
+// app.get("/my-comments", varifyToken, async (req, res) => {
+//   const db = await connectDB();
+//   const { sub: userId } = req.user;
+//   const comments = await db.collection("comments").find({ userId }).sort({ createdAt: -1 }).toArray();
+//   res.send(comments);
+// });
 
-app.get("/my-ideas", varifyToken, async (req, res) => {
-  const db = await connectDB();
-  const { sub: userId } = req.user;
-  const result = await db.collection("ideas").find({ userId }).sort({ createdAt: -1 }).toArray();
-  res.send(result);
-});
+// app.patch("/comments/:commentId", varifyToken, async (req, res) => {
+//   const db = await connectDB();
+//   const { commentId } = req.params;
+//   const { text } = req.body;
+//   const { sub: userId } = req.user;
+//   const comment = await db.collection("comments").findOne({ _id: new ObjectId(commentId) });
+//   if (!comment) return res.status(404).json({ message: "Not found" });
+//   if (comment.userId !== userId) return res.status(403).json({ message: "Forbidden" });
+//   await db.collection("comments").updateOne({ _id: new ObjectId(commentId) }, { $set: { text, updatedAt: new Date() } });
+//   res.send({ message: "Updated" });
+// });
 
-app.patch("/ideas/:ideaId", varifyToken, async (req, res) => {
-  const db = await connectDB();
-  const { ideaId } = req.params;
-  const { sub: userId } = req.user;
-  const body = req.body;
-  let query;
-  try { query = { _id: new ObjectId(ideaId) }; } catch { query = { _id: ideaId }; }
-  const idea = await db.collection("ideas").findOne(query);
-  if (!idea) return res.status(404).json({ message: "Not found" });
-  if (idea.userId !== userId) return res.status(403).json({ message: "Forbidden" });
-  await db.collection("ideas").updateOne(query, {
-    $set: { ...body, updatedAt: new Date() }
-  });
-  res.send({ message: "Updated" });
-});
+// app.delete("/comments/:commentId", varifyToken, async (req, res) => {
+//   const db = await connectDB();
+//   const { commentId } = req.params;
+//   const { sub: userId } = req.user;
+//   const comment = await db.collection("comments").findOne({ _id: new ObjectId(commentId) });
+//   if (!comment) return res.status(404).json({ message: "Not found" });
+//   if (comment.userId !== userId) return res.status(403).json({ message: "Forbidden" });
+//   await db.collection("comments").deleteOne({ _id: new ObjectId(commentId) });
+//   res.send({ message: "Deleted" });
+// });
 
-app.delete("/ideas/:ideaId", varifyToken, async (req, res) => {
-  const db = await connectDB();
-  const { ideaId } = req.params;
-  const { sub: userId } = req.user;
-  let query;
-  try { query = { _id: new ObjectId(ideaId) }; } catch { query = { _id: ideaId }; }
-  const idea = await db.collection("ideas").findOne(query);
-  if (!idea) return res.status(404).json({ message: "Not found" });
-  if (idea.userId !== userId) return res.status(403).json({ message: "Forbidden" });
-  await db.collection("ideas").deleteOne(query);
-  res.send({ message: "Deleted" });
-});
+// module.exports = app;
 
-app.post("/comments", varifyToken, async (req, res) => {
-  const db = await connectDB();
-  const { ideaId, text } = req.body;
-  const { sub: userId, name, username, email } = req.user;
-  if (!ideaId || !text) return res.status(400).json({ message: "ideaId and text required" });
-  const comment = { ideaId, text, userId, userName: username || name || email, createdAt: new Date() };
-  const result = await db.collection("comments").insertOne(comment);
-  res.send({ ...comment, _id: result.insertedId });
-});
-
-app.get("/comments/:ideaId", async (req, res) => {
-  const db = await connectDB();
-  const { ideaId } = req.params;
-  const comments = await db.collection("comments").find({ ideaId }).sort({ createdAt: -1 }).toArray();
-  res.send(comments);
-});
-
-app.get("/my-comments", varifyToken, async (req, res) => {
-  const db = await connectDB();
-  const { sub: userId } = req.user;
-  const comments = await db.collection("comments").find({ userId }).sort({ createdAt: -1 }).toArray();
-  res.send(comments);
-});
-
-app.patch("/comments/:commentId", varifyToken, async (req, res) => {
-  const db = await connectDB();
-  const { commentId } = req.params;
-  const { text } = req.body;
-  const { sub: userId } = req.user;
-  const comment = await db.collection("comments").findOne({ _id: new ObjectId(commentId) });
-  if (!comment) return res.status(404).json({ message: "Not found" });
-  if (comment.userId !== userId) return res.status(403).json({ message: "Forbidden" });
-  await db.collection("comments").updateOne({ _id: new ObjectId(commentId) }, { $set: { text, updatedAt: new Date() } });
-  res.send({ message: "Updated" });
-});
-
-app.delete("/comments/:commentId", varifyToken, async (req, res) => {
-  const db = await connectDB();
-  const { commentId } = req.params;
-  const { sub: userId } = req.user;
-  const comment = await db.collection("comments").findOne({ _id: new ObjectId(commentId) });
-  if (!comment) return res.status(404).json({ message: "Not found" });
-  if (comment.userId !== userId) return res.status(403).json({ message: "Forbidden" });
-  await db.collection("comments").deleteOne({ _id: new ObjectId(commentId) });
-  res.send({ message: "Deleted" });
-});
-
-module.exports = app;
-
-if (require.main === module) {
-  app.listen(port, () => console.log(`Server running on port ${port}`));
-}
+// if (require.main === module) {
+//   app.listen(port, () => console.log(`Server running on port ${port}`));
+// }
