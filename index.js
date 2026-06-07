@@ -5,7 +5,14 @@ require("dotenv").config();
 const app = express();
 const cors = require("cors");
 const { createRemoteJWKSet, jwtVerify } = require("jose-cjs");
-app.use(cors());
+
+app.use(
+  cors({
+    origin: "https://ideavault-nine-zeta.vercel.app",
+    credentials: true,
+  }),
+);
+
 app.use(express.json());
 
 const port = process.env.PORT || 8080;
@@ -47,7 +54,6 @@ const varifyToken = async (req, res, next) => {
     const { payload } = await jwtVerify(token, JWKS);
     req.user = payload;
     next();
-    
   } catch (error) {
     console.error("Token validation failed:", error);
     return res.status(401).json({ message: "unauthorize" });
@@ -243,11 +249,11 @@ async function run() {
 
       await ideasCollection.updateOne(query, {
         $set: {
-          ideaTitle: body.ideaTitle, 
+          ideaTitle: body.ideaTitle,
           shortDescription: body.shortDescription,
-          detailedDescription: body.detailedDescription, 
+          detailedDescription: body.detailedDescription,
           category: body.category,
-          imageURL: body.imageURL, 
+          imageURL: body.imageURL,
           targetAudience: body.targetAudience,
           problemStatement: body.problemStatement,
           proposedSolution: body.proposedSolution,
@@ -341,7 +347,6 @@ run().catch(console.dir);
 app.get("/", (req, res) => {
   res.send("Hello World!");
 });
-
 
 module.exports = app;
 // Local a run korar jonno
