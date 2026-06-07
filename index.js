@@ -260,7 +260,7 @@ app.post("/comments", varifyToken, async (req, res) => {
     userName: username || name || email,
     createdAt: new Date(),
   };
-  const result = await db.collection("comments").insertOne(newIdea);
+  const result = await db.collection("comments").insertOne(comment);
   res.send({ ...comment, _id: result.insertedId });
 });
 
