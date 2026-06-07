@@ -248,7 +248,7 @@ app.delete("/comments/:commentId", varifyToken, async (req, res) => {
 //Add idea API
 
 app.post("/comments", varifyToken, async (req, res) => {
-  const db = await connectDB();
+ const db = await connectDB();
   const { ideaId, text } = req.body;
   const { sub: userId, username, email, name } = req.user;
   if (!ideaId || !text)
@@ -260,8 +260,8 @@ app.post("/comments", varifyToken, async (req, res) => {
     userName: username || name || email,
     createdAt: new Date(),
   };
-  const result = await db.collection("ideas").insertOne(newIdea);
-  res.send({ ...newIdea, _id: result.insertedId });
+  const result = await db.collection("comments").insertOne(newIdea);
+  res.send({ ...comment, _id: result.insertedId });
 });
 
 module.exports = app;
